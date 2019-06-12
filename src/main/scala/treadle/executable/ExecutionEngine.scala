@@ -15,7 +15,7 @@ class ExecutionEngine(
     val ast             : Circuit,
     val optionsManager  : HasTreadleSuite,
     val symbolTable     : SymbolTable,
-    val dataStore       : DataStore,
+    val dataStore       : SymbolicDataStore,
     val scheduler       : Scheduler,
     val expressionViews : Map[Symbol, ExpressionView],
     val wallTime        : UTC
@@ -25,11 +25,13 @@ class ExecutionEngine(
   var vcdOption: Option[VCD] = None
   var vcdFileName: String = ""
 
+  /*
   val expressionViewRenderer = new ExpressionViewRenderer(
     dataStore,
     symbolTable,
     expressionViews
   )
+   */
 
   var verbose: Boolean = false
   setVerbose(optionsManager.treadleOptions.setVerbose)
@@ -123,6 +125,9 @@ class ExecutionEngine(
   }
 
   def renderComputation(symbolNames: String, outputFormat: String = "d"): String = {
+    println("TODO: implement renderComputation")
+    ""
+    /*
     val renderer = new ExpressionViewRenderer(dataStore, symbolTable, expressionViews)
 
     val symbols = symbolNames.split(",").map(_.trim).flatMap { s => symbolTable.get(s) }.distinct
@@ -134,6 +139,7 @@ class ExecutionEngine(
         case _ => None
       }
     }.mkString("\n")
+     */
   }
 
   private def runAssigns(): Unit = {

@@ -217,6 +217,18 @@ class TreadleTester(input: String, optionsManager: HasTreadleSuite = new Treadle
     }
   }
 
+  // TODO: experimental API
+  def pokeSymbolic(name: String, symbol: String) : Unit = {
+    try {
+      val isRegister = engine.symbolTable.isRegister(name)
+      engine.setValue(name, value, registerPoke = isRegister)
+    }
+    catch {
+      case ie: TreadleException =>
+        fail(ie, Some(s"Error: pokeSymbolic($name, $symbol)"))
+    }
+  }
+
   /** inspect a value of a named circuit component
     *
     * @param name the name of a circuit component

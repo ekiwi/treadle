@@ -11,17 +11,15 @@ import treadle.utils.Render
 
 import scala.collection.mutable
 
-/**
-  * Creates a data store for the three underlying data types.
-  * The numberOfBuffers is used to control the ability to rollback execution.
-  * The meaning of the values of each slot must be maintained outside of this class.
-  * This class only supports (2 ** 31) - 1 of any ints, longs or bigs.
-  *
-  * @param numberOfBuffers Number of buffers
-  */
+
+class SymbolicDataStore(numberOfBuffers: Int, dataStoreAllocator: SymbolicDataStoreAllocator)
+extends BasicDataStore(numberOfBuffers) {
+  def numberOfEntries : Int = dataStoreAllocator.getSize
+  val data: Array[BigInt] = Array.fill(numberOfEntries)(BigInt(0))
+}
+
 //scalastyle:off number.of.methods
-class DataStore(val numberOfBuffers: Int, dataStoreAllocator: ConcreteDataStoreAllocator)
-extends HasDataArrays {
+abstract class BasicDataStore(val numberOfBuffers: Int) {
   assert(numberOfBuffers >= 0, s"DataStore: numberOfBuffers $numberOfBuffers must be >= 0")
 
   var leanMode      : Boolean = true
@@ -101,15 +99,7 @@ extends HasDataArrays {
     }
   }
 
-  def numberOfInts: Int  = dataStoreAllocator.nextIndexFor(IntSize)
-  def numberOfLongs: Int = dataStoreAllocator.nextIndexFor(LongSize)
-  def numberOfBigs: Int  = dataStoreAllocator.nextIndexFor(BigSize)
-
   val watchList: mutable.HashSet[Symbol] = new mutable.HashSet()
-
-  val intData:   Array[Int]  = Array.fill(numberOfInts)(0)
-  val longData:  Array[Long] = Array.fill(numberOfLongs)(0L)
-  val bigData:   Array[Big]  = Array.fill(numberOfBigs)(Big(0))
 
   val rollBackBufferManager = new RollBackBufferManager(this)
   def saveData(clockName: String, time: Long): Unit = {
@@ -447,276 +437,23 @@ extends HasDataArrays {
     var run: FuncUnit = runLean
   }
 
-  case class BlackBoxShim(
-      unexpandedName: String,
-      outputName:     Symbol,
-      inputs:         Seq[Symbol],
-      implementation: ScalaBlackBox
-  )
-  extends BigExpressionResult {
-
-    val dataStore: DataStore = DataStore.this
-
-    def apply(): Big = {
-      val inputValues = inputs.map { input => dataStore(input) }
-      val bigInt = implementation.getOutput(inputValues, outputName.firrtlType, unexpandedName)
-      bigInt
-    }
-  }
-
-  def apply(symbol: Symbol): Big = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index)
-      case LongSize => longData(symbol.index)
-      case BigSize  => bigData(symbol.index)
-    }
-  }
-
-  def apply(symbol: Symbol, offset: Int): Big = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index + offset)
-      case LongSize => longData(symbol.index + offset)
-      case BigSize  => bigData(symbol.index + offset)
-    }
-  }
-
-  def update(symbol: Symbol, value: Big): Unit = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index) = value.toInt
-      case LongSize => longData(symbol.index) = value.toLong
-      case BigSize  => bigData(symbol.index) = value
-    }
-  }
-
-  def update(symbol: Symbol, offset: Int, value: Big): Unit = {
-    if(offset >= symbol.slots) {
-      throw TreadleException(s"assigning to memory ${symbol.name}[$offset] <= $value: index out of range")
-    }
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index + offset) = value.toInt
-      case LongSize => longData(symbol.index + offset) = value.toLong
-      case BigSize  => bigData(symbol.index + offset) = value
-    }
-  }
-
-  //scalastyle:off cyclomatic.complexity method.length
-  def serialize: String = {
-
-    val nextForData = Seq(IntSize, LongSize, BigSize).map { size =>
-      size.toString -> dataStoreAllocator.nextIndexFor(size)
-    }.toMap
-
-    def toIntJArray(array : Array[Int])  = JArray(array.toList.map { a ⇒ val v: JValue = a; v })
-    def toLongJArray(array: Array[Long]) = JArray(array.toList.map { a ⇒ val v: JValue = a; v })
-    def toBigJArray(array : Array[Big])  = JArray(array.toList.map { a ⇒ val v: JValue = a; v })
-
-    val intDataValues  = toIntJArray(intData)
-    val longDataValues = toLongJArray(longData)
-    val bigDataValues  = toBigJArray(bigData)
-
-    def packageRollbackBuffers = {
-      val packet = rollBackBufferManager.clockToBuffers.keys.toList.sorted.map { clockName =>
-        val rollbackRing = rollBackBufferManager.clockToBuffers(clockName)
-
-        val intArray  = JArray(rollbackRing.ringBuffer.map { x => toIntJArray(x.intData)   }.toList)
-        val longArray = JArray(rollbackRing.ringBuffer.map { x => toLongJArray(x.longData) }.toList)
-        val bigArray  = JArray(rollbackRing.ringBuffer.map { x => toBigJArray(x.bigData)   }.toList)
-
-        ("clockName" -> clockName) ~
-                ("latestBufferIndex" -> rollbackRing.latestBufferIndex) ~
-                ("oldestBufferIndex" -> rollbackRing.oldestBufferIndex) ~
-                ("intBuffers"        -> intArray) ~
-                ("longBuffers"       -> longArray) ~
-                ("bigBuffers"        -> bigArray)
-      }
-
-      packet
-    }
-
-    val json =
-          ("numberOfBuffers" -> numberOfBuffers) ~
-          ("nextForData"     -> nextForData) ~
-          ("intData"         -> intDataValues) ~
-          ("longData"        -> longDataValues) ~
-          ("bigData"         -> bigDataValues) ~
-          ("rollbackData"    -> packageRollbackBuffers)
-
-    pretty(render(json))
-  }
-
-  def deserialize(jsonString: String): Unit = {
-    val json2 = parse(jsonString)
-
-    for {
-      JObject(child) <- json2
-      JField(fieldName, value) <- child
-    } {
-      fieldName match {
-        case "numberOfBuffers" =>
-          val JInt(numBuffs) = value
-          if(numBuffs != numberOfBuffers) {
-            println(s"WARNING: numberOfBuffers in snapshot $numBuffs does not match runtime $numberOfBuffers")
-          }
-        case "nextForData" =>
-          for {
-            JObject(child2) <- value
-            JField(fieldName, value) <- child2
-          } {
-            val JInt(nextNumber) = value
-            fieldName match {
-              case "Int"  => dataStoreAllocator.nextIndexFor(IntSize)  = nextNumber.toInt
-              case "Long" => dataStoreAllocator.nextIndexFor(LongSize) = nextNumber.toInt
-              case "Big"  => dataStoreAllocator.nextIndexFor(BigSize)  = nextNumber.toInt
-            }
-          }
-        case "intData" =>
-          value match  {
-            case JArray(elementValues) =>
-              elementValues.zipWithIndex.foreach {
-                case (JInt(v), index) => intData(index) = v.toInt
-                case _ => None
-              }
-            case _ =>
-          }
-        case "longData" =>
-          value match  {
-            case JArray(elementValues) =>
-              elementValues.zipWithIndex.foreach {
-                case (JInt(v), index) => longData(index) = v.toLong
-                case _ => None
-              }
-            case _ =>
-          }
-        case "bigData" =>
-          value match  {
-            case JArray(elementValues) =>
-              elementValues.zipWithIndex.foreach {
-                case (JInt(v), index) => bigData(index) = v
-                case _ => None
-              }
-            case _ =>
-          }
-        case "rollbackData" =>
-          var clockBuffer = rollBackBufferManager.clockToBuffers.values.head
-          value match {
-            case JArray(clockSections) =>
-              for {
-                JObject(child2) <- clockSections
-                JField(subFieldName, subValue) <- child2
-              } {
-                (subFieldName, subValue) match {
-                  case ("clockName", JString(clockName)) =>
-                    assert(rollBackBufferManager.clockToBuffers.contains(clockName))
-                    clockBuffer = rollBackBufferManager.clockToBuffers(clockName)
-
-                  case ("latestBufferIndex", JInt(latestBufferIndex)) =>
-                    clockBuffer.latestBufferIndex = latestBufferIndex.toInt
-
-                  case ("oldestBufferIndex", JInt(oldestBufferIndex)) =>
-                    clockBuffer.oldestBufferIndex = oldestBufferIndex.toInt
-
-                  case ("intBuffers", JArray(numArrays)) =>
-                    numArrays.zipWithIndex.foreach {
-                      case (JArray(elementValues), rollbackIndex) =>
-                        elementValues.zipWithIndex.foreach {
-                          case (JInt(v), index) =>
-                            clockBuffer.ringBuffer(rollbackIndex).intData(index) = v.toInt
-                          case _ => None
-                        }
-                      case _ =>
-                    }
-
-                  case ("longBuffers", JArray(numArrays)) =>
-                    numArrays.zipWithIndex.foreach {
-                      case (JArray(elementValues), rollbackIndex) =>
-                        elementValues.zipWithIndex.foreach {
-                          case (JInt(v), index) =>
-                            clockBuffer.ringBuffer(rollbackIndex).longData(index) = v.toLong
-                          case _ => None
-                        }
-                      case _ =>
-                    }
-
-                  case ("bigBuffers", JArray(numArrays)) =>
-                    numArrays.zipWithIndex.foreach {
-                      case (JArray(elementValues), rollbackIndex) =>
-                        elementValues.zipWithIndex.foreach {
-                          case (JInt(v), index) =>
-                            clockBuffer.ringBuffer(rollbackIndex).bigData(index) = v
-                          case _ => None
-                        }
-                      case _ =>
-                    }
-
-                  case (subSubFieldName, subSubValue) =>
-                    println(s"got an unhandled field in clock buffer section $subSubFieldName => $subSubValue")
-                }
-              }
-
-            case _ =>
-          }
-
-        case _ =>
-          // println(s"$fieldName -> $value")
-      }
-    }
-  }
 }
 
-object DataStore {
-  def apply(numberOfBuffers: Int, dataStoreAllocator: DataStoreAllocator): DataStore = {
-    assert(dataStoreAllocator.isInstanceOf[ConcreteDataStoreAllocator])
-    new DataStore(numberOfBuffers, dataStoreAllocator.asInstanceOf[ConcreteDataStoreAllocator])
+object SymbolicDataStore {
+  def apply(numberOfBuffers: Int, dataStoreAllocator: SymbolicDataStoreAllocator): DataStore = {
+    new DataStore(numberOfBuffers, dataStoreAllocator)
   }
-  def allocator(): DataStoreAllocator = new ConcreteDataStoreAllocator
+  def allocator(): DataStoreAllocator = new SymbolicDataStoreAllocator
 }
 
-trait HasDataArrays {
-  def intData  : Array[Int]
-  def longData : Array[Long]
-  def bigData  : Array[Big]
+class SymbolicDataStoreAllocator extends DataStoreAllocator {
+  private var index = 0
 
-  def setValueAtIndex(dataSize: DataSize, index: Int, value: Big): Unit = {
-    dataSize match {
-      case IntSize  => intData(index)  = value.toInt
-      case LongSize => longData(index) = value.toLong
-      case BigSize  => bigData(index)  = value
-    }
-  }
-
-  def getValueAtIndex(dataSize: DataSize, index: Int): BigInt = {
-    dataSize match {
-      case IntSize  => intData(index)
-      case LongSize => longData(index)
-      case BigSize  => bigData(index)
-    }
-  }
-}
-
-class ConcreteDataStoreAllocator extends DataStoreAllocator {
-  val nextIndexFor = new mutable.HashMap[DataSize, Int]
-
-  nextIndexFor(IntSize)  = 0
-  nextIndexFor(LongSize) = 0
-  nextIndexFor(BigSize)  = 0
-
-  def numberOfInts: Int  = nextIndexFor(IntSize)
-  def numberOfLongs: Int = nextIndexFor(LongSize)
-  def numberOfBigs: Int  = nextIndexFor(BigSize)
-
-  val watchList: mutable.HashSet[Symbol] = new mutable.HashSet()
-
-  def getSizes: (Int, Int, Int) = {
-    (nextIndexFor(IntSize), nextIndexFor(LongSize), nextIndexFor(BigSize))
-  }
+  def getSize: Int = index
 
   def getIndex(dataSize: DataSize, slots: Int = 1): Int = {
-    val index = nextIndexFor(dataSize)
-    nextIndexFor(dataSize) += slots
-    index
+    val ii = index
+    index += slots
+    ii
   }
-}
-
-trait DataStoreAllocator {
-  def getIndex(dataSize: DataSize, slots: Int = 1): Int
 }
