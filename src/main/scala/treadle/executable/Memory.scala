@@ -29,7 +29,10 @@ object Memory {
     registerNames: mutable.HashSet[String]
   ): Seq[Symbol] = {
 
-    val memorySymbol = Symbol(expandedName, memory.dataType, MemKind, memory.depth)
+    if(memory.depth >= BigInt(Int.MaxValue)) {
+      throw TreadleException(s"Memory $expandedName size ${memory.depth} is too large for treadle")
+    }
+    val memorySymbol = Symbol(expandedName, memory.dataType, MemKind, slots = memory.depth.toInt)
     val addrWidth    = IntWidth(requiredBitsForUInt(memory.depth - 1))
     val addrType     = firrtl.ir.UIntType(addrWidth)
     val dataType     = memory.dataType
@@ -525,8 +528,9 @@ object Memory {
       val valid  = symbolTable(s"$writerName.valid")
 
       // compute a valid so we only have to carry a single boolean up the write queue
-      compiler.makeAssigner(
-        valid, AndInts(dataStore.GetInt(enable.index).apply, dataStore.GetInt(mask.index).apply, 1), info = memory.info)
+      val booleanType  = firrtl.ir.UIntType(IntWidth(1))
+      compiler.makeAssigner(valid, compiler.makeAnd(compiler.makeGet(enable), compiler.makeGet(mask), 1),
+        info = memory.info)
 
       val endOfValidPipeline = buildWritePipelineAssigners(clock, valid, writerName, "valid")
       val endOfAddrPipeline  = buildWritePipelineAssigners(clock, addr, writerName, "addr")
@@ -568,11 +572,7 @@ object Memory {
       // compute a valid so we only have to carry a single boolean up the write queue
       compiler.makeAssigner(
         valid,
-        AndInts(
-          AndInts(dataStore.GetInt(enable.index).apply, dataStore.GetInt(mask.index).apply, 1).apply,
-          dataStore.GetInt(mode.index).apply,
-          1
-        ),
+        compiler.makeAnd(compiler.makeAnd(compiler.makeGet(enable), compiler.makeGet(mask), 1), compiler.makeGet(mode), 1),
         info = memory.info
       )
 

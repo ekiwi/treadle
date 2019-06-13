@@ -356,7 +356,7 @@ class ExecutionEngine(
   class NullToggler extends ClockToggle
 
   def makeUpToggler(symbol: Symbol): Assigner = {
-    val assigner = dataStore.AssignInt(symbol, GetIntConstant(1).apply, NoInfo)
+    val assigner = dataStore.makeConstantAssigner(symbol, 1, NoInfo)
 
     if(vcdOption.isDefined) assigner.setLeanMode(false)
     assigner.setVerbose(verbose)
@@ -364,7 +364,7 @@ class ExecutionEngine(
   }
 
   def makeDownToggler(symbol: Symbol): Assigner = {
-    val assigner = dataStore.AssignInt(symbol, GetIntConstant(0).apply, NoInfo)
+    val assigner = dataStore.makeConstantAssigner(symbol, 0, NoInfo)
 
     if(vcdOption.isDefined) assigner.setLeanMode(false)
     assigner.setVerbose(verbose)
@@ -417,11 +417,11 @@ object ExecutionEngine {
       SymbolTable(loweredAst, blackBoxFactories, treadleOptions.allowCycles)
     }
 
-    val dataStoreAllocator = new DataStoreAllocator
+    val dataStoreAllocator = FastDataStore.allocator()
 
     symbolTable.allocateData(dataStoreAllocator)
 
-    val dataStore = DataStore(treadleOptions.rollbackBuffers, dataStoreAllocator)
+    val dataStore = FastDataStore(treadleOptions.rollbackBuffers, dataStoreAllocator)
 
     if(verbose) {
       println(s"Symbol table:\n${symbolTable.render}")
@@ -429,7 +429,7 @@ object ExecutionEngine {
 
     val scheduler = new Scheduler(symbolTable)
 
-    val compiler = new ExpressionCompiler(symbolTable, dataStore, scheduler, treadleOptions, blackBoxFactories)
+    val compiler = new FastExpressionCompiler(symbolTable, dataStore, scheduler, treadleOptions, blackBoxFactories)
 
     timer("Build Compiled Expressions") {
       compiler.compile(loweredAst, blackBoxFactories)

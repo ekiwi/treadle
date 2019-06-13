@@ -55,11 +55,9 @@ class SymbolTable(val nameToSymbol: mutable.HashMap[String, Symbol]) {
   def apply(name: String): Symbol = nameToSymbol(name)
 
   def getSymbolFromGetter(expressionResult: ExpressionResult, dataStore: DataStore): Option[Symbol] = {
-    expressionResult match {
-      case dataStore.GetInt(index)  => symbols.find { symbol => symbol.dataSize == IntSize && symbol.index == index}
-      case dataStore.GetLong(index) => symbols.find { symbol => symbol.dataSize == LongSize && symbol.index == index}
-      case dataStore.GetBig(index)  => symbols.find { symbol => symbol.dataSize == BigSize && symbol.index == index}
-      case _ => None
+    dataStore.getSymbolFilterFromGetter(expressionResult) match {
+      case Some(predicate) => symbols.find(predicate)
+      case None => None
     }
   }
 

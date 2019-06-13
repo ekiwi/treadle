@@ -4,24 +4,14 @@ package treadle.executable
 
 import scala.collection.mutable
 
-class RollBackBuffer(dataStore: DataStore) extends HasDataArrays {
-  var time: Long = 0L
-
-  val intData    : Array[Int]  = Array.fill(dataStore.numberOfInts)(0)
-  val longData   : Array[Long] = Array.fill(dataStore.numberOfLongs)(0)
-  val bigData    : Array[Big]  = Array.fill(dataStore.numberOfBigs)(0)
-
-  def dump(dumpTime: Long): Unit = {
-    time = dumpTime
-    Array.copy(dataStore.intData,  0, intData,  0, intData.length)
-    Array.copy(dataStore.longData, 0, longData, 0, longData.length)
-    Array.copy(dataStore.bigData,  0, bigData,  0, bigData.length)
-  }
+trait RollBackBuffer extends DataStoreReader {
+  var time: Long
+  def dump(dumpTime: Long): Unit
 }
 
 class RollBackBufferRing(dataStore: DataStore) {
   val numberOfBuffers: Int = dataStore.numberOfBuffers
-  val ringBuffer: Array[RollBackBuffer] = Array.fill(dataStore.numberOfBuffers)(new RollBackBuffer(dataStore))
+  val ringBuffer: Array[RollBackBuffer] = Array.fill(dataStore.numberOfBuffers)(dataStore.makeRollBackBuffer())
 
   var oldestBufferIndex: Int = 0
   var latestBufferIndex: Int = 0

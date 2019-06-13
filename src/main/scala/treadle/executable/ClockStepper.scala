@@ -52,11 +52,17 @@ case class SimpleSingleClockStepper(
 
   var isFirstRun: Boolean = true
 
-  val clockAssigner = dataStore.TriggerConstantAssigner(clockSymbol, engine.scheduler, triggerOnValue = 1, NoInfo)
-  engine.scheduler.clockAssigners += clockAssigner
-  engine.scheduler.addAssigner(clockSymbol, clockAssigner, excludeFromCombinational = true)
+  val clockUpAssigner =
+    dataStore.makeConstantTriggerAssigner(clockSymbol, 1, engine.scheduler, triggerOnValue = 1, NoInfo)
 
-  clockAssigners(clockSymbol) = ClockAssigners(clockAssigner, clockAssigner)
+  val clockDownAssigner =
+    dataStore.makeConstantTriggerAssigner(clockSymbol, 0, engine.scheduler, triggerOnValue = -1, NoInfo)
+
+  clockAssigners(clockSymbol) = ClockAssigners(clockUpAssigner, clockDownAssigner)
+
+
+  engine.scheduler.clockAssigners += clockUpAssigner
+  engine.scheduler.clockAssigners += clockDownAssigner
 
   var combinationalBumps: Long = 0L
 
@@ -66,24 +72,23 @@ case class SimpleSingleClockStepper(
     * @param value        new clock value should be zero or one, all non-zero values are treated as one
     */
   override def bumpClock(clockSymbol: Symbol, value: BigInt): Unit = {
+    // TODO: fix bumpClock"
     if(hasRollBack) {
       // save data state under roll back buffers for this clock
       engine.dataStore.saveData(clockSymbol.name, wallTime.currentTime)
     }
 
-    val constantAssigner = clockAssigner
-    constantAssigner.value = if(value > Big(0)) {
+    if(value > Big(0)) {
       if(hasRollBack) {
         // save data state under roll back buffers for this clock
         engine.dataStore.saveData(clockSymbol.name, wallTime.currentTime)
       }
       cycleCount += 1
-      1
+      clockUpAssigner.run()
     }
     else {
-      0
+      clockDownAssigner.run()
     }
-    constantAssigner.run()
   }
 
   override def combinationalBump(value: Long): Unit = {
@@ -127,8 +132,7 @@ case class SimpleSingleClockStepper(
       * Raise the clock and propagate changes
       */
     def raiseClock(): Unit = {
-      clockAssigner.value = 1
-      clockAssigner.run()
+      clockUpAssigner.run()
       engine.inputsChanged = true
       engine.evaluateCircuit()
 
@@ -142,8 +146,7 @@ case class SimpleSingleClockStepper(
       * lower the clock
       */
     def lowerClock(): Unit = {
-      clockAssigner.value = 0
-      clockAssigner.run()
+      clockDownAssigner.run()
       combinationalBumps = 0L
     }
 
@@ -213,11 +216,10 @@ class MultiClockStepper(engine: ExecutionEngine, clockInfoList: Seq[ClockInfo], 
   clockInfoList.foreach { clockInfo =>
     val clockSymbol = engine.symbolTable(clockInfo.name)
 
-    val clockUpAssigner = dataStore.TriggerExpressionAssigner(
-      clockSymbol, scheduler, GetIntConstant(1).apply, triggerOnValue = 1, NoInfo)
+    val clockUpAssigner = dataStore.makeConstantTriggerAssigner(clockSymbol, 1, scheduler, triggerOnValue = 1, NoInfo)
 
-    val clockDownAssigner = dataStore.TriggerExpressionAssigner(
-      clockSymbol, scheduler, GetIntConstant(0).apply, triggerOnValue = -1, NoInfo)
+    val clockDownAssigner =
+      dataStore.makeConstantTriggerAssigner(clockSymbol, 0, scheduler, triggerOnValue = -1, NoInfo)
 
     clockAssigners(clockSymbol) = ClockAssigners(clockUpAssigner, clockDownAssigner)
 
