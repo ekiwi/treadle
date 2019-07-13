@@ -246,7 +246,6 @@ project/plugins/project/
 .mtj.tmp/
 
 # Package Files #
-*.jar
 *.war
 *.ear
 
@@ -256,4 +255,3 @@ hs_err_pid*
 /treadle/playground.sc
 /*.firrtl_interpreter.vcd
 
-/lib
