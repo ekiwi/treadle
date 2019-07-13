@@ -1,3 +1,6 @@
 [submodule "uclid"]
 	path = uclid
 	url = git@github.com:uclid-org/uclid.git
+[submodule "javabdd"]
+	path = javabdd
+	url = git@github.com:sbliudze/javabdd.git
