@@ -9,11 +9,22 @@ import firrtl.ir
 
 class YicesInterface extends smt.SMTLIB2Interface(List("yices-smt2", "--incremental")) {
   writeCommand("(set-logic QF_AUFBV)")
+
+  override def getModel() : Option[smt.Model] = {
+    uclid.Utils.assert(solverProcess.isAlive(), "Solver process is not alive! Cannot retrieve model.")
+    writeCommand("(get-model)")
+    readResponse() match {
+      case Some(strModel) =>
+        Some(new smt.SMTLIB2Model(strModel.stripLineEnd))
+      case None =>
+        throw new uclid.Utils.AssertionError("Unexpected EOF result from SMT solver.")
+    }
+  }
 }
 
 class Z3ProcessInterface extends smt.SMTLIB2Interface(List("z3", "-in"))
 
-//scalastyle:off magic.number
+//scalastyle:off magic.number cyclomatic.complexity
 class SymbolicContext {
   val solver : smt.Context = new YicesInterface()
 
@@ -70,7 +81,12 @@ class SymbolicContext {
         m.evaluate(lit) match {
           case smt.BooleanLit(value) => if(value) { BigInt(1) } else { BigInt(0) }
           case smt.BitVectorLit(value, _) => value
-          case _=> throw new RuntimeException(s"unexpected type for expression $expr")
+          case smt.Symbol(id, _) => id match {
+            case "true" => BigInt(1)
+            case "false" => BigInt(0)
+            case o => throw new RuntimeException(s"unexpeced symbol $o for expression $expr")
+          }
+          case l => throw new RuntimeException(s"unexpected type for expression $expr => $l")
         }
       case None => throw new RuntimeException(s"unexpected solver result `$smtResult` for expression $expr")
     }
