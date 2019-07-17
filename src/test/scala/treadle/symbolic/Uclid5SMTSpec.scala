@@ -5,12 +5,6 @@ package treadle.symbolic
 import org.scalatest.{Matchers, FreeSpec}
 import uclid.smt._
 
-class YicesInterface extends SMTLIB2Interface(List("yices-smt2", "--incremental")) {
-  writeCommand("(set-logic QF_AUFBV)")
-}
-
-class Z3ProcessInterface extends SMTLIB2Interface(List("z3", "-in"))
-
 
 class Uclid5SMTSpec extends FreeSpec with Matchers {
   //scalastyle:off magic.number
