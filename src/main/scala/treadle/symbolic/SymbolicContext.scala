@@ -3,7 +3,7 @@
 package treadle.symbolic
 
 import scala.collection.mutable
-import net.sf.javabdd.{BDD, JFactory}
+import net.sf.javabdd.{BDD, JFactory, BDDFactory}
 import uclid.{Hashable, smt}
 import firrtl.ir
 
@@ -25,15 +25,18 @@ class YicesInterface extends smt.SMTLIB2Interface(List("yices-smt2", "--incremen
 class Z3ProcessInterface extends smt.SMTLIB2Interface(List("z3", "-in"))
 
 //scalastyle:off magic.number cyclomatic.complexity
-class SymbolicContext {
-  // MultiSE 3.2: without coalescing we get an algorithm that behaves essentially like conventional DSE
-  val DoNotCoalesce : Boolean = false
-  // This will slow down symbolic execution significantly, only enable for debugging
-  val CrosscheckSmtWithConcrete : Boolean = false
+class SymbolicContext(
+   // MultiSE 3.2: without coalescing we get an algorithm that behaves essentially like conventional DSE
+   val DoNotCoalesce : Boolean = false,
+   // This will slow down symbolic execution significantly, only enable for debugging
+   val CrosscheckSmtWithConcrete : Boolean = false,
+   // SMT solver to use
+   val solver : smt.Context = new YicesInterface(),
+   // BDD implementation
+   private val bdds : BDDFactory = JFactory.init(100, 100)
+ ) {
 
-  val solver : smt.Context = new YicesInterface()
 
-  private val bdds = JFactory.init(100, 100)
   private var bddVarCount = 0
   private val smtToBddCache: mutable.HashMap[Hashable, BDD] = new mutable.HashMap()
   private val bddLiteralToSmt: mutable.HashMap[Int, smt.Expr] = new mutable.HashMap()
