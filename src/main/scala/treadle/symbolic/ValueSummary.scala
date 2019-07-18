@@ -42,12 +42,17 @@ class ValueSummary private(private val ctx: SymbolicContext, private val entries
     if(entries.size == 1) { entries.head.symbolic } else {
       entries.drop(1).foldLeft(entries.head.symbolic) { (a: smt.Expr, b: Entry) =>
         val cond = ctx.bddToSmt(b.guard)
-        smt.OperatorApplication(smt.ITEOp, List(cond, b.symbolic, a))
+        val args = cond match {
+          case smt.OperatorApplication(smt.NegationOp, List(n_cond)) => List(n_cond, a, b.symbolic)
+          case _ => List(cond, b.symbolic, a)
+        }
+        smt.OperatorApplication(smt.ITEOp, args)
       }
     }
   }
   override def toString : String = {
-    if(isConcrete) { concrete.toString() }
+    if(isConcrete && width > 1) { concrete.toString() }
+    else if(isConcrete && width == 1) { if(concrete == 0) { "false" } else { "true" } }
     else { symbolic.toString }
   }
 }

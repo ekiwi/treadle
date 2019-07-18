@@ -67,11 +67,18 @@ class SymbolicContext(
     else if(bdd.isZero) { smt.BooleanLit(false) }
     else {
       val is_var = bdd.high().isOne && bdd.low().isZero
+      val is_neg_var = bdd.high().isZero && bdd.low().isOne
       val cond = bddLiteralToSmt(bdd.`var`())
-      if(is_var) { cond } else {
+      if(is_var) { cond }
+      else if(is_neg_var) { smt.OperatorApplication(smt.NegationOp, List(cond)) }
+      else {
         val tru = bddToSmt(bdd.high())
         val fal = bddToSmt(bdd.low())
-        smt.OperatorApplication(smt.ITEOp, List(cond, tru, fal))
+        val args = cond match {
+          case smt.OperatorApplication(smt.NegationOp, List(n_cond)) => List(n_cond, fal, tru)
+          case _ => List(cond, tru, fal)
+        }
+        smt.OperatorApplication(smt.ITEOp, args)
       }
     }
   }
