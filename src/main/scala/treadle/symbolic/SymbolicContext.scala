@@ -26,6 +26,11 @@ class Z3ProcessInterface extends smt.SMTLIB2Interface(List("z3", "-in"))
 
 //scalastyle:off magic.number cyclomatic.complexity
 class SymbolicContext {
+  // MultiSE 3.2: without coalescing we get an algorithm that behaves essentially like conventional DSE
+  val DoNotCoalesce : Boolean = false
+  // This will slow down symbolic execution significantly, only enable for debugging
+  val CrosscheckSmtWithConcrete : Boolean = false
+
   val solver : smt.Context = new YicesInterface()
 
   private val bdds = JFactory.init(100, 100)
@@ -33,6 +38,12 @@ class SymbolicContext {
   private val smtToBddCache: mutable.HashMap[Hashable, BDD] = new mutable.HashMap()
   private val bddLiteralToSmt: mutable.HashMap[Int, smt.Expr] = new mutable.HashMap()
 
+  val tru : BDD = bdds.one()
+  val fals : BDD = bdds.zero()
+
+  // register smt expressions for literal zero and one
+  smtToBddCache(smt.BooleanLit(true)) = tru
+  smtToBddCache(smt.BooleanLit(false)) = fals
 
   def smtToBdd(expr: smt.Expr) : BDD = {
     assert(expr.typ.isBool, s"can only convert boolean expressions to BDD, but `$expr` is of type ${expr.typ}")
