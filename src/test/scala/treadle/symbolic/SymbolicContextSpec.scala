@@ -39,4 +39,38 @@ class SymbolicContextSpec extends FreeSpec with Matchers {
     ctx.eval(fals_or_fals) should be (BigInt(0))
   }
 
+  "make bdd from smt formula" in {
+    val a = smt.Symbol("a", smt.BoolType)
+    val b = smt.Symbol("b", smt.BitVectorType(4))
+    val c = smt.Symbol("c", smt.BitVectorType(4))
+    val b_greater_c = smt.OperatorApplication(smt.BVGTOp(4), List(b, c))
+
+    val a_bdd_0 = ctx.smtToBdd(a)
+    val a_bdd_1 = ctx.smtToBdd(a)
+    val b_greater_c_bdd = ctx.smtToBdd(b_greater_c)
+
+    a_bdd_0 == a_bdd_1 should be (true)
+    a_bdd_0 == b_greater_c_bdd should be (false)
+
+    assertThrows[AssertionError] {
+       ctx.smtToBdd(b)
+    }
+  }
+
+  "make bdd from smt formula and convert back" in {
+    val a = smt.Symbol("a", smt.BoolType)
+    val b = smt.Symbol("b", smt.BitVectorType(4))
+    val c = smt.Symbol("c", smt.BitVectorType(4))
+    val b_greater_c = smt.OperatorApplication(smt.BVGTOp(4), List(b, c))
+
+    val a_bdd = ctx.smtToBdd(a)
+    val b_greater_c_bdd = ctx.smtToBdd(b_greater_c)
+
+    val a_bdd_smt = ctx.bddToSmt(a_bdd)
+    val a_eq = a_bdd_smt == a
+
+    a_eq should be (true)
+    ctx.bddToSmt(b_greater_c_bdd) == b_greater_c should be (true)
+  }
+
 }

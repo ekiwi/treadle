@@ -34,7 +34,8 @@ class SymbolicContext {
   private val bddLiteralToSmt: mutable.HashMap[Int, smt.Expr] = new mutable.HashMap()
 
 
-  def smtToBDD(expr: smt.Expr) : BDD = {
+  def smtToBdd(expr: smt.Expr) : BDD = {
+    assert(expr.typ.isBool, s"can only convert boolean expressions to BDD, but `$expr` is of type ${expr.typ}")
     if(!smtToBddCache.contains(expr)) {
       // TODO: if expr is a OperatorApplication w/ a boolean operator, we could add more info to the BDD
       if(bdds.varNum() <= bddVarCount) {
@@ -51,10 +52,13 @@ class SymbolicContext {
     if(bdd.isOne) { smt.BooleanLit(true) }
     else if(bdd.isZero) { smt.BooleanLit(false) }
     else {
+      val is_var = bdd.high().isOne && bdd.low().isZero
       val cond = bddLiteralToSmt(bdd.`var`())
-      val tru = bddToSmt(bdd.high())
-      val fal = bddToSmt(bdd.low())
-      smt.OperatorApplication(smt.ITEOp, List(cond, tru, fal))
+      if(is_var) { cond } else {
+        val tru = bddToSmt(bdd.high())
+        val fal = bddToSmt(bdd.low())
+        smt.OperatorApplication(smt.ITEOp, List(cond, tru, fal))
+      }
     }
   }
 
