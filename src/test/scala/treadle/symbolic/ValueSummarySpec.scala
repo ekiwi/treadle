@@ -9,6 +9,23 @@ import uclid.smt
 class ValueSummarySpec extends FreeSpec with Matchers {
   implicit val ctx = new SymbolicContext()
 
+  private def bv4(value: Int) = ValueSummary(value, 4)
+  private def bv4_add_sym(a: smt.Expr, b: smt.Expr) = smt.OperatorApplication(smt.BVAddOp(4), List(a,b))
+  private def add_con(a: BigInt, b: BigInt) = a + b
+
+  "pruning of infeasible entries" in {
+    // for this test we create a `false` guard in the value summary
+    val a = ValueSummary(smt.Symbol("a", smt.BoolType))
+    val four_or_five = ValueSummary.ite(a, bv4(4), bv4(5))
+    val one_or_one = ValueSummary.ite(a, bv4(1), bv4(1))
+
+    // if we add the two value summaries, we should get no more than two entries,
+    // since the other entries should evaluate to false
+    val sum = ValueSummary.binOp(four_or_five, one_or_one, add_con, bv4_add_sym, 4)
+    sum.entryCount should be (2)
+  }
+
+
   "concrete ite" in {
     val tru = ValueSummary(true)
     val fals = ValueSummary(false)

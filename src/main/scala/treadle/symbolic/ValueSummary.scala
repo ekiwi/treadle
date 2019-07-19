@@ -33,6 +33,7 @@ class ValueSummary private(private val ctx: SymbolicContext, private val entries
   assert(entries.nonEmpty, s"entries must contain at least one element: $entries")
   assert(entries.forall(_.width == entries.head.width), s"entries are not of equal witdth: $entries")
   def width : Int = entries.head.width
+  private[symbolic] def entryCount : Int = entries.size
   def isConcrete : Boolean = entries.size == 1 && entries.head.isConcrete
   def concrete : BigInt = {
     assert(isConcrete, "not concrete!")
