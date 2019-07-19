@@ -66,11 +66,39 @@ class SymbolicContext(
     if(bdd.isOne) { smt.BooleanLit(true) }
     else if(bdd.isZero) { smt.BooleanLit(false) }
     else {
-      val is_var = bdd.high().isOne && bdd.low().isZero
-      val is_neg_var = bdd.high().isZero && bdd.low().isOne
+      // all cases verified with sympy:
+      // simplify_logic(ITE(c, 1, 0)) = c
+      // simplify_logic(ITE(c, 0, 1)) = ~c
+      // simplify_logic(ITE(c, 1, b)) = b | c
+      // simplify_logic(ITE(c, 0, b)) = b & ~c
+      // simplify_logic(ITE(c, b, 1)) = b | ~c
+      // simplify_logic(ITE(c, b, 0)) = b & c
+      val high_is_one  = bdd.high().isOne
+      val high_is_zero = bdd.high().isZero
+      val low_is_one   = bdd.low().isOne
+      val low_is_zero  = bdd.low().isZero
+      val is_var = high_is_one && low_is_zero
+      val is_neg_var = high_is_zero && low_is_one
+      val is_or_var = high_is_one
+      val is_and_neg_var = high_is_zero
+      val is_or_neg_var = low_is_one
+      val is_and_var = low_is_zero
+
       val cond = bddLiteralToSmt(bdd.`var`())
+      lazy val neg_cond = smt.OperatorApplication(smt.NegationOp, List(cond))
+
       if(is_var) { cond }
-      else if(is_neg_var) { smt.OperatorApplication(smt.NegationOp, List(cond)) }
+      else if(is_neg_var) { neg_cond }
+      else if(is_or_var || is_and_neg_var) {
+        val b = bddToSmt(bdd.low())
+        if(is_or_var) { smt.OperatorApplication(smt.DisjunctionOp, List(cond, b)) }
+        else          { smt.OperatorApplication(smt.ConjunctionOp, List(neg_cond, b)) }
+      }
+      else if(is_or_neg_var || is_and_var) {
+        val b = bddToSmt(bdd.high())
+        if(is_or_neg_var) { smt.OperatorApplication(smt.DisjunctionOp, List(neg_cond, b)) }
+        else              { smt.OperatorApplication(smt.ConjunctionOp, List(cond, b)) }
+      }
       else {
         val tru = bddToSmt(bdd.high())
         val fal = bddToSmt(bdd.low())

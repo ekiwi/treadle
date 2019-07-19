@@ -73,4 +73,18 @@ class SymbolicContextSpec extends FreeSpec with Matchers {
     ctx.bddToSmt(b_greater_c_bdd) == b_greater_c should be (true)
   }
 
+  "bddToSmt simplifications" in {
+    val a = smt.Symbol("a", smt.BoolType)
+    val b = smt.Symbol("b", smt.BoolType)
+    val a_bdd = ctx.smtToBdd(a)
+    val b_bdd = ctx.smtToBdd(b)
+    val a_not = smt.OperatorApplication(smt.NegationOp, List(a))
+
+    ctx.bddToSmt(a_bdd.not()) should be (a_not)
+    ctx.bddToSmt(a_bdd.and(b_bdd)) should be (smt.OperatorApplication(smt.ConjunctionOp, List(a, b)))
+    ctx.bddToSmt(a_bdd.or(b_bdd))  should be (smt.OperatorApplication(smt.DisjunctionOp, List(a, b)))
+    ctx.bddToSmt(a_bdd.not().or(b_bdd))   should be (smt.OperatorApplication(smt.DisjunctionOp, List(a_not, b)))
+    ctx.bddToSmt(a_bdd.not().and(b_bdd))  should be (smt.OperatorApplication(smt.ConjunctionOp, List(a_not, b)))
+  }
+
 }
