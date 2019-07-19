@@ -25,6 +25,15 @@ class ValueSummarySpec extends FreeSpec with Matchers {
     sum.entryCount should be (2)
   }
 
+  "coalescing of duplicate values" in {
+    val a = ValueSummary(smt.Symbol("a", smt.BoolType))
+    val four_or_five = ValueSummary.ite(a, bv4(4), bv4(5))
+    val one_or_zero = ValueSummary.ite(a, bv4(1), bv4(0))
+
+    // the result of the addition is always five, no matter what the branch condition is
+    val sum = ValueSummary.binOp(four_or_five, one_or_zero, add_con, bv4_add_sym, 4)
+    sum.entryCount should be (1)
+  }
 
   "concrete ite" in {
     val tru = ValueSummary(true)

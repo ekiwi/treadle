@@ -121,8 +121,17 @@ object ValueSummary {
   }
 
   private def coalesce(entries: Seq[Entry]) : Seq[Entry] = {
-    // TODO: implement
-    entries
+    val concrete : Map[BigInt,   Seq[Entry]] = entries.filter(_.isConcrete).groupBy(_.concrete)
+    val symbolic : Map[smt.Expr, Seq[Entry]] = entries.filter(!_.isConcrete).groupBy(_.symbolic)
+
+    def merge[T](m : Map[T, Seq[Entry]], mkEntry: (BDD, T) => Entry) =
+      m.map { case (value, es) => if(es.size == 1) { es.head } else {
+        val guard = es.map(_.guard).reduce((a,b) => a.or(b))
+        mkEntry(guard, value)
+      } }.toSeq
+
+    merge(concrete, (guard: BDD, value: BigInt) => Entry(guard, value, entries.head.width)) ++
+    merge(symbolic, (guard: BDD, value: smt.Expr) => Entry(guard, value))
   }
 }
 
