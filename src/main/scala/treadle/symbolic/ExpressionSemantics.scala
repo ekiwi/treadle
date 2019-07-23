@@ -6,12 +6,38 @@ import firrtl.ir._
 import uclid.smt
 import treadle.utils.{BitMasks, BitUtils}
 
-trait Semantics {
+trait ExpressionSemantics {
   val argCount : Int
   def resultType(ts: Seq[Type]) : Option[Type]
+
+  protected def getWidth(tpe: Type) : Int = tpe match {
+    case UIntType(IntWidth(w)) => w.toInt
+    case SIntType(IntWidth(w)) => w.toInt
+    case other => throw new RuntimeException(s"Cannot get width for type: $other")
+  }
+
+  protected def isSigned(tpe: Type): Boolean = tpe match {
+    case SIntType(_) => true
+    case _ => false
+  }
+
+  protected def extend(inBits: Int, outBits: Int, signed: Boolean) : smt.Expr => smt.Expr = {
+    assert(inBits <= outBits,  "This method only extends the width of an argument!")
+    if(inBits == outBits) { e => e }
+    else{
+      val op = if(signed){ smt.BVSignExtOp(outBits, outBits - inBits) }
+      else { smt.BVZeroExtOp(outBits, outBits - inBits) }
+      e => smt.OperatorApplication(op, List(e))
+    }
+  }
+
+  protected def extractAsBool(bitPos: Int) : smt.Expr => smt.Expr = e => {
+    val bit = smt.OperatorApplication(smt.BVExtractOp(bitPos, bitPos), List(e))
+    smt.OperatorApplication(smt.EqualityOp, List(bit, smt.BitVectorLit(1, 1)))
+  }
 }
 
-trait BinOpSemantics extends Semantics {
+trait BinOpSemantics extends ExpressionSemantics {
   override val argCount = 2
 
   override def resultType(ts: Seq[Type]) : Option[Type] = {
@@ -49,28 +75,6 @@ trait BinOpSemantics extends Semantics {
 
   protected def uIntResultWidth(w1: BigInt, w2: BigInt) : BigInt
   protected def sIntResultWidth(w1: BigInt, w2: BigInt) : BigInt
-
-  protected def getWidth(tpe: Type) : Int = tpe match {
-    case UIntType(IntWidth(w)) => w.toInt
-    case SIntType(IntWidth(w)) => w.toInt
-    case other => throw new RuntimeException(s"Cannot get width for type: $other")
-  }
-
-  protected def isSigned(tpe: Type): Boolean = tpe match {
-    case SIntType(_) => true
-    case _ => false
-  }
-
-  protected def extend(inBits: Int, outBits: Int, signed: Boolean) : smt.Expr => smt.Expr = {
-    assert(inBits <= outBits,  "This method only extends the width of an argument!")
-    if(inBits == outBits) { _ }
-    else{
-      val op = if(signed){ smt.BVSignExtOp(outBits, outBits - inBits) }
-      else { smt.BVZeroExtOp(outBits, outBits - inBits) }
-      e => smt.OperatorApplication(op, List(e))
-    }
-  }
-
 }
 
 trait ArithmeticSemantics extends BinOpSemantics {
@@ -237,5 +241,154 @@ object CatSemantics extends BinOpSemantics {
   override protected def compileCon(w1: Int, w2: Int, wr: Int) = {
     val mask1 = BitMasks.getBitMasksBigs(w1).allBitsMask
     (e1, e2) => ((e1 & mask1) << w2) | e2
+  }
+}
+
+trait UnOpSemantics extends ExpressionSemantics {
+  override val argCount = 1
+
+  override def resultType(ts: Seq[Type]) : Option[Type] = {
+    assert(ts.size == 1)
+    resultType(ts.head)
+  }
+
+  def resultType(t1: Type) : Option[Type]
+
+  type ConFun = BigInt => BigInt
+  type SymFun = smt.Expr => smt.Expr
+
+  def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun
+
+  def typeCheck(t1: Type, tr: Type) : Boolean = resultType(t1).contains(tr)
+
+  def compile(t1: Type, tr: Type) : (ConFun, SymFun) = {
+    val (w1, wr, signed) = (getWidth(t1), getWidth(tr),isSigned(tr))
+    (compileCon(w1, wr, signed), compileSym(w1, wr, signed))
+  }
+
+  def compileAndCheck(t1: Type, tr: Type) : (ConFun, SymFun) = {
+    assert(typeCheck(t1, tr), "Expressions does not type-check!")
+    assert(getWidth(t1) > 0, s"No support for 0-width types! ($t1, $tr)")
+    compile(t1, tr)
+  }
+
+  protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun
+}
+
+object AsUIntSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(UIntType(IntWidth(w)))
+    case SIntType(IntWidth(w)) => Some(UIntType(IntWidth(w)))
+    case ClockType => Some(UIntType(IntWidth(1)))
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(wr).allBitsMask
+    if(signed) { e1 => e1 & mask } else { e1 => e1 }
+  }
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 => e1
+}
+
+object AsSIntSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(SIntType(IntWidth(w)))
+    case SIntType(IntWidth(w)) => Some(SIntType(IntWidth(w)))
+    case ClockType => Some(SIntType(IntWidth(1)))
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(wr)
+    if(signed) { e1 => e1 } else { e1 =>
+      if(mask.isMsbSet(e1)) { (e1 & mask.allBitsMask) - mask.nextPowerOfTwo }
+      else { e1 & mask.allBitsMask }
+    }
+  }
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 => e1
+}
+
+object AsClockSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => if(w == 1) { Some(ClockType) } else { None }
+    case SIntType(IntWidth(w)) => if(w == 1) { Some(ClockType) } else { None }
+    case ClockType => Some(ClockType)
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = e1 => e1
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 => e1
+}
+
+object CvtSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(SIntType(IntWidth(w + 1)))
+    case SIntType(IntWidth(w)) => Some(SIntType(IntWidth(w)))
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = e1 => e1
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun =
+    if(signed) { e1 => e1 } else { e1 => smt.OperatorApplication(smt.BVZeroExtOp(wr, 1), List(e1)) }
+}
+
+object NegSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(SIntType(IntWidth(w + 1)))
+    case SIntType(IntWidth(w)) => Some(SIntType(IntWidth(w + 1)))
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = e1 => -e1
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 =>
+      smt.OperatorApplication(smt.BVSubOp(wr), List(smt.BitVectorLit(0, wr), extend(w1, wr, signed)(e1)))
+}
+
+object NotSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(UIntType(IntWidth(w)))
+    case SIntType(IntWidth(w)) => Some(UIntType(IntWidth(w)))
+    case _ => None
+  }
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(w1).allBitsMask
+    e1 => (~e1) & mask
+  }
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 =>
+    smt.OperatorApplication(smt.BVNotOp(wr), List(e1))
+}
+
+trait BitwiseReductionSemantics extends UnOpSemantics {
+  override def resultType(t1: Type) : Option[Type] = t1 match {
+    case UIntType(IntWidth(w)) => Some(UIntType(IntWidth(1)))
+    case SIntType(IntWidth(w)) => Some(UIntType(IntWidth(1)))
+    case _ => None
+  }
+  protected val op : smt.BoolResultOp
+  override protected def compileSym(w1: Int, wr: Int, signed: Boolean) : SymFun = e1 => {
+    val bits = 0 to w1 map(b => extractAsBool(b)(e1))
+    bits.reduce((a,b) => smt.OperatorApplication(op, List(a, b)))
+  }
+}
+
+object AndRSemantics extends BitwiseReductionSemantics {
+  override protected val op = smt.ConjunctionOp
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(w1).allBitsMask
+    e1 => if((e1 & mask) == mask) { 1 } else { 0 }
+  }
+}
+
+object OrRSemantics extends BitwiseReductionSemantics {
+  override protected val op = smt.DisjunctionOp
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(w1).allBitsMask
+    e1 => if((e1 & mask) > 0) { 1 } else { 0 }
+  }
+}
+
+object XorRSemantics extends BitwiseReductionSemantics {
+  override protected val op = smt.InequalityOp
+  override def compileCon(w1: Int, wr: Int, signed: Boolean) : ConFun = {
+    val mask = BitMasks.getBitMasksBigs(w1).allBitsMask
+    e1 => {
+      val uInt = e1 & mask
+      (0 until w1).map(n => ((uInt >> n) & BigInt(1)).toInt).reduce(_ ^ _)
+    }
   }
 }
