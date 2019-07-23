@@ -1,14 +1,18 @@
 // See LICENSE for license details.
 
-package treadle.executable
+package treadle.symbolic
 
 import firrtl.PrimOps._
 import firrtl.ir._
 import treadle._
+import treadle.executable._
 
-class FastExpressionCompiler(
+
+
+
+class SymbolicExpressionCompiler(
   symbolTable  : SymbolTable,
-  override val dataStore    : FastDataStore,
+  override val dataStore    : SymbolicDataStore,
   scheduler        : Scheduler,
   treadleOptions   : TreadleOptions,
   blackBoxFactories: Seq[ScalaBlackBoxFactory]
@@ -16,28 +20,13 @@ class FastExpressionCompiler(
 extends ExpressionCompiler(symbolTable, dataStore, scheduler, treadleOptions, blackBoxFactories) {
 
   override def makeGet(source: Symbol): ExpressionResult = {
-    source.dataSize match {
-      case IntSize =>  dataStore.GetInt(source.index)
-      case LongSize => dataStore.GetLong(source.index)
-      case BigSize =>  dataStore.GetBig(source.index)
-    }
+    dataStore.Get(source.index)
   }
 
   override def makeGetIndirect(memory: Symbol, data: Symbol, enable: Symbol, addr: Symbol): ExpressionResult = {
-    data.dataSize match {
-      case IntSize =>
-        dataStore.GetIntIndirect(
-          memory, dataStore.GetInt(addr.index).apply, dataStore.GetInt(enable.index).apply
-        )
-      case LongSize =>
-        dataStore.GetLongIndirect(
-          memory, dataStore.GetInt(addr.index).apply, dataStore.GetInt(enable.index).apply
-        )
-      case BigSize =>
-        dataStore.GetBigIndirect(
-          memory, dataStore.GetInt(addr.index).apply, dataStore.GetInt(enable.index).apply
-        )
-    }
+    dataStore.GetIndirect(
+      memory, dataStore.Get(addr.index).apply, dataStore.Get(enable.index).apply
+    )
   }
 
   //scalastyle:off cyclomatic.complexity
@@ -46,43 +35,11 @@ extends ExpressionCompiler(symbolTable, dataStore, scheduler, treadleOptions, bl
                     expressionResult: ExpressionResult,
                     info: Info
                   ): Assigner = {
-    (symbol.dataSize, expressionResult) match {
-      case (IntSize,  result: IntExpressionResult)  =>
-        if(scheduler.isTrigger(symbol)) {
-          dataStore.TriggerIntAssigner(symbol, scheduler, result.apply, triggerOnValue = 1, info)
-        }
-        else {
-          dataStore.AssignInt(symbol, result.apply, info)
-        }
-      case (IntSize,  result: LongExpressionResult) =>
-        if(scheduler.isTrigger(symbol)) {
-          dataStore.TriggerIntAssigner(symbol, scheduler, ToInt(result.apply).apply, triggerOnValue = 1, info)
-        }
-        else {
-          dataStore.AssignInt(symbol,  ToInt(result.apply).apply, info)
-        }
-      case (IntSize,  result: BigExpressionResult)  =>
-        if(scheduler.isTrigger(symbol)) {
-          dataStore.TriggerIntAssigner(symbol, scheduler, ToInt(result.apply).apply, triggerOnValue = 1, info)
-        }
-        else {
-          dataStore.AssignInt(symbol,  ToInt(result.apply).apply, info)
-        }
-      case (LongSize, result: IntExpressionResult)  => dataStore.AssignLong(symbol, ToLong(result.apply).apply, info)
-      case (LongSize, result: LongExpressionResult) => dataStore.AssignLong(symbol, result.apply, info)
-      case (LongSize, result: BigExpressionResult)  => dataStore.AssignLong(symbol, BigToLong(result.apply).apply, info)
-      case (BigSize,  result: IntExpressionResult)  => dataStore.AssignBig(symbol,  ToBig(result.apply).apply, info)
-      case (BigSize,  result: LongExpressionResult) => dataStore.AssignBig(symbol,  LongToBig(result.apply).apply, info)
-      case (BigSize,  result: BigExpressionResult)  => dataStore.AssignBig(symbol,  result.apply, info)
-      case (size, result) =>
-        val expressionSize = result match {
-          case _: IntExpressionResult => "Int"
-          case _: LongExpressionResult => "Long"
-          case _: BigExpressionResult => "Big"
-        }
-
-        throw TreadleException(
-          s"Error:assignment size mismatch ($size)${symbol.name} <= ($expressionSize)$expressionResult")
+    val result = SymbolicExpressionResult(expressionResult)
+    if(scheduler.isTrigger(symbol)) {
+      dataStore.TriggerIntAssigner(symbol, scheduler, result.apply, triggerOnValue = 1, info)
+    } else {
+      dataStore.Assign(symbol, result.apply, info)
     }
   }
 
@@ -105,46 +62,17 @@ extends ExpressionCompiler(symbolTable, dataStore, scheduler, treadleOptions, bl
                             info             : Info
                           ): Unit = {
 
-    def getIndex = dataStore.GetInt(memoryIndex).apply _
-    def getEnable = {
-      dataStore.GetInt(enableIndex).apply _
-    }
-
-    val assigner = (memorySymbol.dataSize, expressionResult) match {
-      case (IntSize, result: IntExpressionResult) =>
-        dataStore.AssignIntIndirect(portSymbol, memorySymbol, getIndex, getEnable, result.apply, info)
-      case (LongSize, result: IntExpressionResult) =>
-        dataStore.AssignLongIndirect(portSymbol, memorySymbol, getIndex, getEnable, ToLong(result.apply).apply, info)
-      case (LongSize, result: LongExpressionResult) =>
-        dataStore.AssignLongIndirect(portSymbol, memorySymbol, getIndex, getEnable, result.apply, info)
-      case (BigSize, result: IntExpressionResult) =>
-        dataStore.AssignBigIndirect(portSymbol, memorySymbol, getIndex, getEnable, ToBig(result.apply).apply, info)
-      case (BigSize, result: LongExpressionResult) =>
-        dataStore.AssignBigIndirect(portSymbol, memorySymbol, getIndex, getEnable, LongToBig(result.apply).apply, info)
-      case (BigSize, result: BigExpressionResult) =>
-        dataStore.AssignBigIndirect(portSymbol, memorySymbol, getIndex, getEnable, result.apply, info)
-      case (size, result) =>
-        val expressionSize = result match {
-          case _: IntExpressionResult => "Int"
-          case _: LongExpressionResult => "Long"
-          case _: BigExpressionResult => "Big"
-        }
-
-        throw TreadleException(
-          s"Error:assignment size mismatch ($size)${memorySymbol.name} <= ($expressionSize)$expressionResult")
-    }
+    def getIndex = dataStore.Get(memoryIndex).apply _
+    def getEnable = dataStore.Get(enableIndex).apply _
+    val assigner = dataStore.AssignIntIndirect(portSymbol, memorySymbol, getIndex, getEnable, result.apply, info)
     addAssigner(assigner)
   }
 
 
   override def makeAnd(e1: ExpressionResult, e2: ExpressionResult, resultWidth: Int): ExpressionResult = {
-    assert(resultWidth < 32, "makeAnd only implemented for Int results")
-    (e1, e2) match {
-      case (a: IntExpressionResult, b: IntExpressionResult) => {
-        AndInts(a.apply, b.apply, resultWidth) // TODO: fix this terrible hack
-      }
-      case _ => throw new RuntimeException("makeAnd only implemented for Int & Int!")
-    }
+    val a = SymbolicExpressionResult(e1)
+    val b = SymbolicExpressionResult(e2)
+    AndSym(a.apply, b.apply, resultWidth)
   }
 
   //scalastyle:off method.length

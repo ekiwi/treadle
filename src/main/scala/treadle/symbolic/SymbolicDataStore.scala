@@ -3,19 +3,9 @@
 package treadle.symbolic
 
 import firrtl.ir.Info
-import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.JsonDSL._
 import treadle.utils.Render
 import treadle.executable._
-import treadle.symbolic.ValueSummary.SymbolicFun
 
-import scala.collection.mutable
-
-
-trait SymbolicExpressionResult extends ExpressionResult {
-  def apply(): ValueSummary
-}
 
 
 class SymbolicDataStore(numberOfBuffers: Int, dataStoreAllocator: SymbolicDataStoreAllocator)
@@ -31,8 +21,8 @@ class SymbolicDataStore(numberOfBuffers: Int, dataStoreAllocator: SymbolicDataSt
   }
 
   def setValueAtIndex(dataSize: DataSize, index: Int, value: Big): Unit = {
-
-    data(index) = Some(ValueSummary() value)
+    throw new NotImplementedError("TODO")
+    //data(index) = Some(ValueSummary() value)
   }
 
   def getValueAtIndex(dataSize: DataSize, index: Int): Big = data(index).get.concrete
@@ -72,82 +62,23 @@ class SymbolicDataStore(numberOfBuffers: Int, dataStoreAllocator: SymbolicDataSt
   }
 
   /** for memory implementations */
-  case class GetIntIndirect(
-                               memorySymbol: Symbol,
-                               getMemoryIndex: FuncInt,
-                               enable: FuncInt
-                           ) extends IntExpressionResult {
-    val memoryLocation: Int = memorySymbol.index
-    def apply(): Int = {
-      intData(memoryLocation + (getMemoryIndex() % memorySymbol.slots))
-    }
-  }
-
-  case class AssignIntIndirect(
-                                  symbol: Symbol,
-                                  memorySymbol: Symbol,
-                                  getMemoryIndex: FuncInt,
-                                  enable: FuncInt,
-                                  expression: FuncInt,
-                                  info: Info
-                              ) extends Assigner {
-    val index: Int = memorySymbol.index
-
-    def runLean(): Unit = {
-      if(enable() > 0) {
-        intData(index + getMemoryIndex.apply()) = expression()
-      }
-    }
-
-    def runFull(): Unit = {
-      if(enable() > 0) {
-        val value = expression()
-        val memoryIndex = getMemoryIndex.apply()
-        intData(index + (memoryIndex % memorySymbol.slots)) = value
-        runPlugins(memorySymbol, memoryIndex)
-      }
-    }
-
-    override def setLeanMode(isLean: Boolean): Unit = {
-      run = if(isLean) runLean else runFull
-    }
-    var run: FuncUnit = runLean
-  }
+  // Not Implemented!
 
 
-  def apply(symbol: Symbol): Big = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index)
-      case LongSize => longData(symbol.index)
-      case BigSize  => bigData(symbol.index)
-    }
-  }
+  def apply(symbol: Symbol): Big = data(symbol.index).get.concrete
 
-  def apply(symbol: Symbol, offset: Int): Big = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index + offset)
-      case LongSize => longData(symbol.index + offset)
-      case BigSize  => bigData(symbol.index + offset)
-    }
-  }
+  def apply(symbol: Symbol, offset: Int): Big = data(symbol.index + offset).get.concrete
+
 
   def update(symbol: Symbol, value: Big): Unit = {
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index) = value.toInt
-      case LongSize => longData(symbol.index) = value.toLong
-      case BigSize  => bigData(symbol.index) = value
-    }
+    data(symbol.index) = Some(ValueSummary(value, symbol.bitWidth))
   }
 
   def update(symbol: Symbol, offset: Int, value: Big): Unit = {
     if(offset >= symbol.slots) {
       throw TreadleException(s"assigning to memory ${symbol.name}[$offset] <= $value: index out of range")
     }
-    symbol.dataSize match {
-      case IntSize  => intData(symbol.index + offset) = value.toInt
-      case LongSize => longData(symbol.index + offset) = value.toLong
-      case BigSize  => bigData(symbol.index + offset) = value
-    }
+    data(symbol.index) = Some(ValueSummary(value, symbol.bitWidth))
   }
 
   override def makeConstantTriggerAssigner(symbol: Symbol, const: Big, scheduler: Scheduler,
