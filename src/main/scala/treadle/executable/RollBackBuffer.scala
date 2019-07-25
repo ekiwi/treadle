@@ -5,26 +5,6 @@ package treadle.executable
 import scala.reflect.ClassTag
 
 /**
-  * [[DataBuffer]] implementation for the default [[DataStore]].
-  * @param dataStore the dataStore to be backed up.
-  */
-class RollBackBuffer(dataStore: DataStore) extends HasDataArrays with DataBuffer {
-  private var time: Long = 0L
-  override def getTime: Long = time
-
-  val intData    : Array[Int]  = Array.fill(dataStore.numberOfInts)(0)
-  val longData   : Array[Long] = Array.fill(dataStore.numberOfLongs)(0)
-  val bigData    : Array[Big]  = Array.fill(dataStore.numberOfBigs)(0)
-
-  def dump(dumpTime: Long): Unit = {
-    time = dumpTime
-    Array.copy(dataStore.intData,  0, intData,  0, intData.length)
-    Array.copy(dataStore.longData, 0, longData, 0, longData.length)
-    Array.copy(dataStore.bigData,  0, bigData,  0, bigData.length)
-  }
-}
-
-/**
   * Maintains a ring buffer of dataStore images
   * The only real complexity here is that the number of populated buffers is zero.
   * @param numberOfBuffers      size of ring
