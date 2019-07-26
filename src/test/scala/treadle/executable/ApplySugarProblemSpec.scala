@@ -3,7 +3,7 @@
 package treadle.executable
 
 import org.scalatest.{FreeSpec, Matchers}
-
+import treadle.executable.fast._
 
 //scalastyle:off magic.number
 class ApplySugarProblemSpec extends FreeSpec with Matchers {

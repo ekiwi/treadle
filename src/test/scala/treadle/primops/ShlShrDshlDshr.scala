@@ -3,6 +3,7 @@
 package treadle.primops
 
 import treadle.executable._
+import treadle.executable.fast._
 import treadle.{BitTwiddlingUtils, extremaOfSIntOfWidth, extremaOfUIntOfWidth}
 import org.scalatest.{FreeSpec, Matchers}
 

@@ -470,11 +470,11 @@ object ExecutionEngine {
       SymbolTable(circuit, blackBoxFactories, allowCycles)
     }
 
-    val dataStoreAllocator = new DataStoreAllocator
+    val dataStoreAllocator = new fast.DataStoreAllocator
 
     symbolTable.allocateData(sym => dataStoreAllocator.getIndex(sym.dataSize, sym.slots))
 
-    val dataStore = DataStore(rollbackBuffers, dataStoreAllocator)
+    val dataStore = fast.DataStore(rollbackBuffers, dataStoreAllocator)
 
     if(verbose) {
       println(s"Symbol table:\n${symbolTable.render}")
@@ -482,7 +482,7 @@ object ExecutionEngine {
 
     val scheduler = new Scheduler(symbolTable)
 
-    val compiler = new ExpressionCompiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
+    val compiler = new fast.ExpressionCompiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
 
     timer("Build Compiled Expressions") {
       compiler.compile(circuit, blackBoxFactories)

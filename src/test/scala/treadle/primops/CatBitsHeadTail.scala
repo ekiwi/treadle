@@ -6,6 +6,7 @@ import firrtl.stage.FirrtlSourceAnnotation
 import org.scalatest.{FreeSpec, Matchers}
 import treadle.{BitTwiddlingUtils, _}
 import treadle.executable._
+import treadle.executable.fast._
 
 
 // scalastyle:off magic.number

@@ -5,25 +5,28 @@ package treadle.executable
 import firrtl.WireKind
 import firrtl.ir._
 
+case class PrintfArgExpressionResult(o: () => Any) extends ExpressionResult {
+  def apply() : Any = o()
+}
+
+trait PrintfConditionResult extends ExpressionResult {
+  def apply() : Boolean
+}
 case class PrintfOp(
   symbol          : Symbol,
   info            : Info,
   string          : StringLit,
-  args            : Seq[ExpressionResult],
+  args            : Seq[PrintfArgExpressionResult],
   clockTransition : AbstractClockTransitionGetter,
-  condition       : IntExpressionResult
+  condition       : PrintfConditionResult
 ) extends Assigner {
 
   private val formatString = string.escape
 
   def run: FuncUnit = {
-    val conditionValue = condition.apply() > 0
+    val conditionValue = condition.apply()
     if (conditionValue && clockTransition.isPosEdge) {
-      val currentArgValues = args.map {
-        case e: IntExpressionResult => e.apply()
-        case e: LongExpressionResult => e.apply()
-        case e: BigExpressionResult => e.apply()
-      }
+      val currentArgValues = args.map(_.apply())
       val instantiatedString = executeVerilogPrint(formatString, currentArgValues)
       print(instantiatedString.drop(1).dropRight(1))
     }

@@ -1,7 +1,8 @@
 // See LICENSE for license details.
 
-package treadle.executable
+package treadle.executable.fast
 
+import treadle.executable.{ExpressionResult, Big, FuncBig, Symbol}
 import treadle.utils.{BitMasks, BitUtils}
 
 trait IntExpressionResult extends ExpressionResult {

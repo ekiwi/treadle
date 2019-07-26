@@ -13,8 +13,6 @@ package object executable {
 
   trait ExpressionResult
 
-  type FuncInt  = () => Int
-  type FuncLong = () => Long
   type FuncBig  = () => Big
   type FuncUnit = () => Unit
 

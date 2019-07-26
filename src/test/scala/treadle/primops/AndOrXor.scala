@@ -3,7 +3,7 @@
 package treadle.primops
 
 import firrtl.stage.FirrtlSourceAnnotation
-import treadle.executable.{AndInts, OrInts, XorInts}
+import treadle.executable.fast.{AndInts, OrInts, XorInts}
 import treadle.{BitTwiddlingUtils, TreadleTester, extremaOfSIntOfWidth, extremaOfUIntOfWidth}
 import org.scalatest.{FreeSpec, Matchers}
 

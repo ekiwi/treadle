@@ -4,18 +4,22 @@ package treadle.executable
 
 import firrtl.ir.Info
 
+trait StopConditionResult extends ExpressionResult {
+  def apply() : Boolean
+}
+
 case class StopOp(
   symbol             : Symbol,
   info               : Info,
   returnValue        : Int,
-  condition          : IntExpressionResult,
+  condition          : StopConditionResult,
   hasStopped         : Symbol,
   dataStore          : DataWriter,
   clockTransition    : AbstractClockTransitionGetter
 ) extends Assigner {
 
   def run: FuncUnit = {
-    val conditionValue = condition.apply() > 0
+    val conditionValue = condition.apply()
     if (conditionValue && clockTransition.isPosEdge) {
       if (isVerbose) {
         println(s"clock ${symbol.name} has fired")

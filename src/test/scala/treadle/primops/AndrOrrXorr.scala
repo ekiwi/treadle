@@ -4,6 +4,7 @@ package treadle.primops
 
 import firrtl.stage.FirrtlSourceAnnotation
 import treadle.executable._
+import treadle.executable.fast._
 import treadle._
 import org.scalatest.{FreeSpec, Matchers}
 
