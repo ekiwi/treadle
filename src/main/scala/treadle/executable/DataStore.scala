@@ -23,45 +23,6 @@ class DataStore(val numberOfBuffers: Int, dataStoreAllocator: DataStoreAllocator
 extends HasDataArrays with AbstractDataStore {
   assert(numberOfBuffers >= 0, s"DataStore: numberOfBuffers $numberOfBuffers must be >= 0")
 
-  var leanMode      : Boolean = true
-  val plugins       : mutable.HashMap[String, DataStorePlugin] = new mutable.HashMap()
-  val activePlugins : mutable.ArrayBuffer[DataStorePlugin]     = new mutable.ArrayBuffer()
-
-  def addPlugin(name: String, plugin: DataStorePlugin, enable: Boolean): Unit = {
-    if(plugins.contains(name)) {
-      throw TreadleException(s"Attempt to add already loaded plugin $name new $plugin, existing ${plugins(name)}")
-    }
-    plugins(name) = plugin
-    plugin.setEnabled(enable)
-  }
-
-  def enablePlugin(name: String): Unit = {
-    if(plugins.contains(name)) {
-      println(s"Could not find plugin $name to remove it")
-    }
-    plugins(name).setEnabled(true)
-  }
-
-  def disablePlugin(name: String): Unit = {
-    if(plugins.contains(name)) {
-      println(s"Could not find plugin $name to remove it")
-    }
-    plugins(name).setEnabled(false)
-  }
-
-  def removePlugin(name: String): Unit = {
-    if(plugins.contains(name)) {
-      println(s"Could not find plugin $name to remove it")
-    }
-    val plugin = plugins(name)
-    plugin.setEnabled(false)  // remove from active and should return to lean mode if no other plugins are active
-    plugins.remove(name)
-  }
-
-  def hasEnabledPlugins: Boolean = {
-    activePlugins.nonEmpty
-  }
-
   var executionEngineOption: Option[ExecutionEngine] = None
 
   def setExecutionEngine(executionEngine: ExecutionEngine): Unit = {
@@ -631,13 +592,45 @@ trait DataSerializer {
   def deserialize(jsonString: String): Unit
 }
 
-trait DataPluginHost {
-  def addPlugin(name: String, plugin: DataStorePlugin, enable: Boolean): Unit
-  def removePlugin(name: String): Unit
-  def hasEnabledPlugins: Boolean
-  val plugins : mutable.HashMap[String, DataStorePlugin]   // TODO: change to getter
-  val activePlugins : mutable.ArrayBuffer[DataStorePlugin] // TODO: change to getter
+trait DataPluginManager {
+  var leanMode      : Boolean = true
+  val plugins       : mutable.HashMap[String, DataStorePlugin] = new mutable.HashMap()
+  val activePlugins : mutable.ArrayBuffer[DataStorePlugin]     = new mutable.ArrayBuffer()
 
+  def addPlugin(name: String, plugin: DataStorePlugin, enable: Boolean): Unit = {
+    if(plugins.contains(name)) {
+      throw TreadleException(s"Attempt to add already loaded plugin $name new $plugin, existing ${plugins(name)}")
+    }
+    plugins(name) = plugin
+    plugin.setEnabled(enable)
+  }
+
+  def enablePlugin(name: String): Unit = {
+    if(plugins.contains(name)) {
+      println(s"Could not find plugin $name to remove it")
+    }
+    plugins(name).setEnabled(true)
+  }
+
+  def disablePlugin(name: String): Unit = {
+    if(plugins.contains(name)) {
+      println(s"Could not find plugin $name to remove it")
+    }
+    plugins(name).setEnabled(false)
+  }
+
+  def removePlugin(name: String): Unit = {
+    if(plugins.contains(name)) {
+      println(s"Could not find plugin $name to remove it")
+    }
+    val plugin = plugins(name)
+    plugin.setEnabled(false)  // remove from active and should return to lean mode if no other plugins are active
+    plugins.remove(name)
+  }
+
+  def hasEnabledPlugins: Boolean = {
+    activePlugins.nonEmpty
+  }
 }
 
 /** A DataBuffer is the a snapshot of a [[AbstractDataStore]] at a particular time. */
@@ -646,7 +639,7 @@ trait DataBuffer extends DataReader {
   def dump(dumpTime: Long): Unit
 }
 
-trait AbstractDataStore extends DataReader with DataWriter with DataSerializer with DataPluginHost {
+trait AbstractDataStore extends DataReader with DataWriter with DataSerializer with DataPluginManager {
   var leanMode : Boolean
   val numberOfBuffers: Int
   def setExecutionEngine(executionEngine: ExecutionEngine): Unit
