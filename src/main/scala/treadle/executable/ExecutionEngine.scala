@@ -440,6 +440,38 @@ class ExecutionEngine(
   }
 }
 
+trait ExecutionBackend {
+  def makeDataStore(rollbackBuffers: Int, symbolTable: SymbolTable): AbstractDataStore
+  def makeCompiler(symbolTable: SymbolTable, dataStore: AbstractDataStore, scheduler: Scheduler,
+                   validIfIsRandom: Boolean, blackBoxFactories: Seq[ScalaBlackBoxFactory]): AbstractCompiler
+}
+
+object FastExecutionBackend extends ExecutionBackend {
+  def makeDataStore(rollbackBuffers: Int, symbolTable: SymbolTable): fast.DataStore = {
+    val dataStoreAllocator = new fast.DataStoreAllocator
+    symbolTable.allocateData(sym => dataStoreAllocator.getIndex(sym.dataSize, sym.slots))
+    fast.DataStore(rollbackBuffers, dataStoreAllocator)
+  }
+  def makeCompiler(symbolTable: SymbolTable, dataStore: AbstractDataStore, scheduler: Scheduler,
+                   validIfIsRandom: Boolean, blackBoxFactories: Seq[ScalaBlackBoxFactory]): AbstractCompiler = {
+    new fast.Compiler(symbolTable, dataStore.asInstanceOf[fast.DataStore], scheduler, validIfIsRandom,
+                      blackBoxFactories)
+  }
+}
+
+object SimpleExecutionBackend extends ExecutionBackend {
+  def makeDataStore(rollbackBuffers: Int, symbolTable: SymbolTable): simple.DataStore = {
+    val dataStoreAllocator = new simple.DataStoreAllocator
+    symbolTable.allocateData(sym => dataStoreAllocator.getIndex(sym.slots))
+    simple.DataStore(dataStoreAllocator)
+  }
+  def makeCompiler(symbolTable: SymbolTable, dataStore: AbstractDataStore, scheduler: Scheduler,
+                   validIfIsRandom: Boolean, blackBoxFactories: Seq[ScalaBlackBoxFactory]): AbstractCompiler = {
+    new simple.Compiler(symbolTable, dataStore.asInstanceOf[simple.DataStore], scheduler, validIfIsRandom,
+      blackBoxFactories)
+  }
+}
+
 object ExecutionEngine {
 
   val VCDHookName = "log-vcd"
@@ -465,16 +497,13 @@ object ExecutionEngine {
     )
     val validIfIsRandom  = annotationSeq.exists { case ValidIfIsRandomAnnotation => true; case _ => false }
     val verbose  = annotationSeq.exists { case VerboseAnnotation => true; case _ => false }
+    val backend = annotationSeq.collectFirst { case TreadleBackendAnnotation(b) => b }.getOrElse(FastExecutionBackend)
 
     val symbolTable: SymbolTable = timer("Build Symbol Table") {
       SymbolTable(circuit, blackBoxFactories, allowCycles)
     }
 
-    val dataStoreAllocator = new fast.DataStoreAllocator
-
-    symbolTable.allocateData(sym => dataStoreAllocator.getIndex(sym.dataSize, sym.slots))
-
-    val dataStore = fast.DataStore(rollbackBuffers, dataStoreAllocator)
+    val dataStore = backend.makeDataStore(rollbackBuffers, symbolTable)
 
     if(verbose) {
       println(s"Symbol table:\n${symbolTable.render}")
@@ -482,7 +511,7 @@ object ExecutionEngine {
 
     val scheduler = new Scheduler(symbolTable)
 
-    val compiler = new fast.Compiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
+    val compiler = backend.makeCompiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
 
     timer("Build Compiled Expressions") {
       compiler.compile(circuit, blackBoxFactories)

@@ -7,7 +7,7 @@ import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.ir.Circuit
 import firrtl.options.{HasShellOptions, RegisteredLibrary, ShellOption, Unserializable}
 import firrtl.stage.{FirrtlFileAnnotation, FirrtlSourceAnnotation}
-import treadle.executable.{ClockInfo, TreadleException}
+import treadle.executable.{ClockInfo, ExecutionBackend, FastExecutionBackend, TreadleException}
 
 sealed trait TreadleOption extends Unserializable { this: Annotation => }
 
@@ -222,6 +222,10 @@ case class TreadleCircuitStateAnnotation(state: CircuitState) extends NoTargetAn
   * @param tester The [[TreadleTester]] to be passed on
   */
 case class TreadleTesterAnnotation(tester: TreadleTester) extends NoTargetAnnotation with TreadleOption
+
+/**  Selects the backend that should be used with the [[treadle.executable.ExecutionEngine]] */
+case class TreadleBackendAnnotation(backend: ExecutionBackend = FastExecutionBackend)
+    extends NoTargetAnnotation with TreadleOption
 
 /**
   * Factory for [[FirrtlSourceAnnotation]], this is an alias for FirrtlCli
