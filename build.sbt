@@ -30,7 +30,7 @@ name := "treadle"
 
 organization := "edu.berkeley.cs"
 
-version := "1.1-SNAPSHOT"
+version := "1.1.3-SNAPSHOT"
 
 scalaVersion := "2.12.7"
 
