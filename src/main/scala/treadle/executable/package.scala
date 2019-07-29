@@ -12,6 +12,9 @@ package object executable {
   }
 
   trait ExpressionResult
+  trait BigExpressionResult extends ExpressionResult {
+    def apply(): Big
+  }
 
   type FuncBig  = () => Big
   type FuncUnit = () => Unit

@@ -6,7 +6,6 @@ import firrtl.ir.Info
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.JsonDSL._
-import treadle.ScalaBlackBox
 import treadle.executable._
 
 import scala.collection.mutable
@@ -50,11 +49,7 @@ extends HasDataArrays with AbstractDataStore {
     }
   }
 
-  def runPlugins(symbol: Symbol, offset: Int = -1): Unit = {
-    activePlugins.foreach { _.run(symbol, offset) }
-  }
-
-def makeConstantAssigner(symbol: Symbol, value: Big, info: Info) : Assigner = {
+  def makeConstantAssigner(symbol: Symbol, value: Big, info: Info) : Assigner = {
     symbol.dataSize match {
       case IntSize  => AssignInt(symbol,  GetIntConstant(value.toInt).apply _, info)
       case LongSize => AssignLong(symbol, GetLongConstant(value.toLong).apply _, info)
@@ -109,22 +104,6 @@ def makeConstantAssigner(symbol: Symbol, value: Big, info: Info) : Assigner = {
       run = if(isLean) runLean _ else runFull _
     }
     var run: FuncUnit = runLean _
-  }
-
-  case class ExternalModuleInputAssigner(
-    symbol:             Symbol,
-    portName:           String,
-    blackBox:           ScalaBlackBox,
-    underlyingAssigner: Assigner
-  ) extends Assigner {
-
-    val info: Info = underlyingAssigner.info
-
-    override def run: FuncUnit = {
-      underlyingAssigner.run()
-      blackBox.inputChanged(portName, apply(symbol))
-      () => Unit
-    }
   }
 
   case class GetLong(index: Int) extends LongExpressionResult {
@@ -302,23 +281,6 @@ def makeConstantAssigner(symbol: Symbol, value: Big, info: Info) : Assigner = {
       run = if(isLean) runLean _ else runFull _
     }
     var run: FuncUnit = runLean _
-  }
-
-  case class BlackBoxShim(
-      unexpandedName: String,
-      outputName:     Symbol,
-      inputs:         Seq[Symbol],
-      implementation: ScalaBlackBox
-  )
-  extends BigExpressionResult {
-
-    val dataStore: DataStore = DataStore.this
-
-    def apply(): Big = {
-      val inputValues = inputs.map { input => dataStore(input) }
-      val bigInt = implementation.getOutput(inputValues, outputName.firrtlType, unexpandedName)
-      bigInt
-    }
   }
 
   def getWaveformValues(symbols: Array[Symbol], startCycle: Int = 0, endCycle: Int = -1): WaveformValues = {

@@ -386,7 +386,7 @@ object Memory {
     * @param compiler     needed for assigner generation
     */
   def buildMemoryInternals(
-    memory: DefMemory, expandedName: String, scheduler: Scheduler, compiler: AbstractExpressionCompiler
+    memory: DefMemory, expandedName: String, scheduler: Scheduler, compiler: AbstractCompiler
   ): Unit = {
     val symbolTable  = scheduler.symbolTable
     val memorySymbol = symbolTable(expandedName)

@@ -482,7 +482,7 @@ object ExecutionEngine {
 
     val scheduler = new Scheduler(symbolTable)
 
-    val compiler = new fast.ExpressionCompiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
+    val compiler = new fast.Compiler(symbolTable, dataStore, scheduler, validIfIsRandom, blackBoxFactories)
 
     timer("Build Compiled Expressions") {
       compiler.compile(circuit, blackBoxFactories)

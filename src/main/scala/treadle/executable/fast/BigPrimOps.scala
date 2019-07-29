@@ -2,12 +2,8 @@
 
 package treadle.executable.fast
 
-import treadle.executable.{ExpressionResult, Big, FuncBig}
+import treadle.executable.{BigExpressionResult, Big, FuncBig}
 import treadle.utils.{BitMasks, BitUtils}
-
-trait BigExpressionResult extends ExpressionResult {
-  def apply(): Big
-}
 
 case class GetBigConstant(n: Big) extends BigExpressionResult {
   def apply(): Big = n

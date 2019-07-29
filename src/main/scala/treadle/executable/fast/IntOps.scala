@@ -2,7 +2,7 @@
 
 package treadle.executable.fast
 
-import treadle.executable.{ExpressionResult, Big, FuncBig, Symbol}
+import treadle.executable.{ExpressionResult, Big, FuncBig, Symbol, BigExpressionResult}
 import treadle.utils.{BitMasks, BitUtils}
 
 trait IntExpressionResult extends ExpressionResult {

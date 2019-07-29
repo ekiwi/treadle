@@ -64,6 +64,10 @@ trait DataPluginManager {
   def hasEnabledPlugins: Boolean = {
     activePlugins.nonEmpty
   }
+
+  def runPlugins(symbol: Symbol, offset: Int = -1): Unit = {
+    activePlugins.foreach { _.run(symbol, offset) }
+  }
 }
 
 trait ExecutionEngineLoader {
