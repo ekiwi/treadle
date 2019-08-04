@@ -192,9 +192,9 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     }
   }
 
-  def validIf(condition: ExpressionResult, value: ExpressionResult, resultWidth: Int): ExpressionResult = {
+  def validIf(condition: ExpressionResult, value: ExpressionResult, resultType: Type): ExpressionResult = {
     if(validIfIsRandom) {
-      MuxBigs(asBig(condition).apply _, asBig(value).apply _, UndefinedBigs(resultWidth).apply _)
+      MuxBigs(asBig(condition).apply _, asBig(value).apply _, UndefinedBigs(getWidth(resultType)).apply _)
     } else { value }
   }
 

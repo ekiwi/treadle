@@ -573,7 +573,8 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     }
   }
 
-  def validIf(condition: ExpressionResult, value: ExpressionResult, resultWidth: Int): ExpressionResult = {
+  def validIf(condition: ExpressionResult, value: ExpressionResult, resultType: Type): ExpressionResult = {
+    val resultWidth = getWidth(resultType)
     if(validIfIsRandom) {
       condition match {
         case c: IntExpressionResult =>

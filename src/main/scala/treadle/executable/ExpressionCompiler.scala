@@ -85,7 +85,7 @@ abstract class ExpressionCompiler(
   def oneArgOneParamOps(op: PrimOp, expressions: Seq[Expression], ints: Seq[BigInt], tpe: Type): ExpressionResult
   def oneArgTwoParamOps(op: PrimOp, expressions: Seq[Expression], ints: Seq[BigInt], tpe: Type): ExpressionResult
   def unaryOps(op: PrimOp, expressions: Seq[Expression], tpe: Type): ExpressionResult
-  def validIf(condition: ExpressionResult, value: ExpressionResult, resultWidth: Int): ExpressionResult
+  def validIf(condition: ExpressionResult, value: ExpressionResult, resultType: Type): ExpressionResult
   def makeGet(sourceName: String): ExpressionResult
   def literal(value: Big, width: Big, signed: Boolean): ExpressionResult
 
@@ -106,7 +106,7 @@ abstract class ExpressionCompiler(
         makeGet(expand(subIndex.serialize))
 
       case ValidIf(condition, value, tpe) =>
-        validIf(processExpression(condition), processExpression(value), getWidth(tpe))
+        validIf(processExpression(condition), processExpression(value), tpe)
 
       case DoPrim(op, args, const, tpe) =>
         val v = op match {
