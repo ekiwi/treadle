@@ -159,6 +159,7 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     val (e1, arg1Width) = processArg(expressions.head)
     val param1 = ints.head
     op match {
+      case Pad  => e1
       case Head => HeadBigs(e1.apply _, takeBits = param1.toInt, arg1Width.toInt)
       case Tail => TailBigs(e1.apply _, toDrop = param1.toInt, arg1Width.toInt)
       case Shl  => ShlBigs(e1.apply _, GetBigConstant(param1).apply _)
@@ -176,7 +177,6 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     val (e1, sourceWidth) = processArg(expressions.head)
     val width = getWidth(tpe)
     op match {
-      case Pad            => e1
       case AsUInt         => AsUIntBigs(e1.apply _, width)
       case AsSInt         => AsSIntBigs(e1.apply _, width)
       case AsClock        => e1

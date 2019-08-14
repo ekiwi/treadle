@@ -453,6 +453,7 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     arg1 match {
       case e1: IntExpressionResult =>
         op match {
+          case Pad => e1
           case Head => HeadInts(e1.apply _, takeBits = param1, arg1Width)
           case Tail => TailInts(e1.apply _, toDrop = param1, arg1Width)
           case Shl  => ShlInts(e1.apply _, GetIntConstant(param1).apply _)
@@ -460,6 +461,7 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
         }
       case e1: LongExpressionResult =>
         op match {
+          case Pad => e1
           case Head => HeadLongs(e1.apply _, takeBits = param1, arg1Width)
           case Tail => TailLongs(e1.apply _, toDrop = param1, arg1Width)
           case Shl  => ShlLongs(e1.apply _, GetLongConstant(param1).apply _)
@@ -467,6 +469,7 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
         }
       case e1: BigExpressionResult =>
         op match {
+          case Pad => e1
           case Head => HeadBigs(e1.apply _, takeBits = param1, arg1Width)
           case Tail => TailBigs(e1.apply _, toDrop = param1, arg1Width)
           case Shl  => ShlBigs(e1.apply _, GetBigConstant(param1).apply _)
@@ -524,7 +527,6 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
     arg1 match {
       case e1: IntExpressionResult =>
         op match {
-          case Pad            => e1
           case AsUInt         => AsUIntInts(e1.apply _, width)
           case AsSInt         => AsSIntInts(e1.apply _, width)
           case AsClock        => e1
@@ -540,7 +542,6 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
         }
       case e1: LongExpressionResult =>
         op match {
-          case Pad            => e1
           case AsUInt         => AsUIntLongs(e1.apply _, width)
           case AsSInt         => AsSIntLongs(e1.apply _, width)
           case AsClock        => e1
@@ -556,7 +557,6 @@ class ExpressionCompiler(expand: String => String, compiler: Compiler, validIfIs
         }
       case e1: BigExpressionResult =>
         op match {
-          case Pad            => e1
           case AsUInt         => AsUIntBigs(e1.apply _, width)
           case AsSInt         => AsSIntBigs(e1.apply _, width)
           case AsClock        => e1
