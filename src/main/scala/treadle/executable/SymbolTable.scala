@@ -39,6 +39,8 @@ class SymbolTable(val nameToSymbol: mutable.HashMap[String, Symbol]) {
   val registerNames:    mutable.HashSet[String] = new mutable.HashSet[String]
   val inputPortsNames:  mutable.HashSet[String] = new mutable.HashSet[String]
   val outputPortsNames: mutable.HashSet[String] = new mutable.HashSet[String]
+  val memoryNames:      mutable.HashSet[String] = new mutable.HashSet[String]
+  val memoryDefinitions:mutable.HashMap[String, DefMemory] = new mutable.HashMap[String, DefMemory]
 
   val registerToClock:  mutable.HashMap[Symbol, Symbol] = new mutable.HashMap()
 
@@ -176,6 +178,8 @@ object SymbolTable extends LazyLogging {
     val registerNames = new mutable.HashSet[String]
     val inputPorts    = new mutable.HashSet[String]
     val outputPorts   = new mutable.HashSet[String]
+    val memoryNames   = new mutable.HashSet[String]
+    val memoryDefinitions = new mutable.HashMap[String, DefMemory]
 
     val registerToClock   = new mutable.HashMap[Symbol, Symbol]
     val stopToStopInfo    = new mutable.HashMap[Stop, StopInfo]
@@ -366,8 +370,11 @@ object SymbolTable extends LazyLogging {
           memorySymbols.foreach { symbol =>
             addSymbol(symbol)
           }
-          val moduleMemory = module.name + "." + defMemory.name
 
+          memoryNames += expandedName
+          memoryDefinitions(expandedName) = defMemory
+
+          val moduleMemory = module.name + "." + defMemory.name
           moduleMemoryToMemorySymbol(moduleMemory) += memorySymbols.head
 
 
@@ -521,6 +528,8 @@ object SymbolTable extends LazyLogging {
     symbolTable.registerNames            ++= registerNames
     symbolTable.inputPortsNames          ++= inputPorts
     symbolTable.outputPortsNames         ++= outputPorts
+    symbolTable.memoryNames              ++= memoryNames
+    symbolTable.memoryDefinitions        ++= memoryDefinitions
     symbolTable.toBlackBoxImplementation ++= blackBoxImplementations
     symbolTable.registerToClock          ++= registerToClock
     symbolTable.stopToStopInfo           ++= stopToStopInfo
