@@ -180,6 +180,7 @@ object SymbolTable extends LazyLogging {
     val outputPorts   = new mutable.HashSet[String]
     val memoryNames   = new mutable.HashSet[String]
     val memoryDefinitions = new mutable.HashMap[String, DefMemory]
+    val clockSignals = new mutable.HashSet[String]
 
     val registerToClock   = new mutable.HashMap[Symbol, Symbol]
     val stopToStopInfo    = new mutable.HashMap[Stop, StopInfo]
@@ -236,11 +237,12 @@ object SymbolTable extends LazyLogging {
       }
 
       def createPrevClock(clockName: String, tpe: Type, info: Info): Unit = {
-        val prevClockName = makePreviousValue(clockName)
-
-        val symbol = Symbol.apply(prevClockName, tpe, firrtl.NodeKind, info = info)
-
-        addSymbol(symbol)
+        if(!clockSignals.contains(clockName)) {
+          clockSignals.add(clockName)
+          val prevClockName = makePreviousValue(clockName)
+          val symbol = Symbol.apply(prevClockName, tpe, firrtl.NodeKind, info = info)
+          addSymbol(symbol)
+        }
       }
 
       s match {
@@ -258,15 +260,13 @@ object SymbolTable extends LazyLogging {
               else {
                 expand(con.loc.serialize)
               }
+
               val symbol = nameToSymbol(name)
+
               if(symbol.firrtlType == ClockType) {
-                //
                 // we have found a clock on the LHS, create a previous value for it
-                val prevClockSymbolName = makePreviousValue(symbol)
-                if(! nameToSymbol.contains(prevClockSymbolName)) {
-                  val prevClockSymbol = Symbol(prevClockSymbolName, ClockType, WireKind, info = symbol.info)
-                  addSymbol(prevClockSymbol)
-                }
+                // this is mostly needed for module instances with clock inputs
+                createPrevClock(symbol.name, symbol.firrtlType, symbol.info)
               }
 
               val references = expressionToReferences(con.expr)
@@ -360,7 +360,12 @@ object SymbolTable extends LazyLogging {
           }
           addDependency(registerIn, Set(registerOut))
 
-          registerToClock(registerOut) = expressionToReferences(clockExpression).head
+          val clocks = expressionToReferences(clockExpression)
+          assert(clocks.size == 1, s"Register $name needs to be clocked by exactly one wire: $clocks")
+          val clock = clocks.head
+          // sometimes UInt<1> signals may be used as clocks, thus we need to make sure a prevClock symbol exists
+          createPrevClock(clock.name, clock.firrtlType, clock.info)
+          registerToClock(registerOut) = clock
 
         case defMemory: DefMemory =>
           val expandedName = expand(defMemory.name)
@@ -476,6 +481,7 @@ object SymbolTable extends LazyLogging {
               outputPorts += symbol.name
             }
             if(port.tpe == ClockType) {
+              clockSignals.add(symbol.name)
               val prevClockSymbol = Symbol(makePreviousValue(symbol), ClockType, PortKind)
               addSymbol(prevClockSymbol)
             }

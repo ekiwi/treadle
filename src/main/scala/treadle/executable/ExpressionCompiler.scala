@@ -215,6 +215,7 @@ abstract class BaseCompiler(symbolTable: SymbolTable, dataStore: AbstractDataSto
           } yield {
             topClock
           }
+        case DoPrim(AsClock, Seq(arg), _, _) => getDrivingClock(arg)
         case _ =>
           None
       }
