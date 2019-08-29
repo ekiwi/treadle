@@ -39,6 +39,7 @@ class SymbolTable(val nameToSymbol: mutable.HashMap[String, Symbol]) {
   val registerNames:    mutable.HashSet[String] = new mutable.HashSet[String]
   val inputPortsNames:  mutable.HashSet[String] = new mutable.HashSet[String]
   val outputPortsNames: mutable.HashSet[String] = new mutable.HashSet[String]
+  val clockSignalNames: mutable.HashSet[String] = new mutable.HashSet[String]
   val memoryNames:      mutable.HashSet[String] = new mutable.HashSet[String]
   val memoryDefinitions:mutable.HashMap[String, DefMemory] = new mutable.HashMap[String, DefMemory]
 
@@ -534,6 +535,7 @@ object SymbolTable extends LazyLogging {
     symbolTable.registerNames            ++= registerNames
     symbolTable.inputPortsNames          ++= inputPorts
     symbolTable.outputPortsNames         ++= outputPorts
+    symbolTable.clockSignalNames         ++= clockSignals.flatMap{c => Seq(c, makePreviousValue(c)) }
     symbolTable.memoryNames              ++= memoryNames
     symbolTable.memoryDefinitions        ++= memoryDefinitions
     symbolTable.toBlackBoxImplementation ++= blackBoxImplementations
